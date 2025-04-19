@@ -32,10 +32,10 @@ registerFontFamily(
 
 def generate_expression():
     while True:
-        a = random.randint(0, 10)
-        b = random.randint(0, 10)
+        a = random.randint(0, 20)
+        b = random.randint(0, 20)
         c = a + b
-        d = a - b + random.randint(0, 2)
+        d = a - b + random.randint(0, 20)
 
         options = [
             (f"{a} + {b} = <b><i>x</i></b>", a + b),
