@@ -3,6 +3,8 @@
 This is a simple math worksheet generator that creates addition and subtraction problems for children. The generator
 creates a one page of problems and serves them as PDF file. Problems are generated randomly on each run.
 
+Service is hosted on https://edu.voty.eu/worksheet
+
 ## Features
 
 - Generates addition and subtraction problems
