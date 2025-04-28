@@ -42,6 +42,7 @@ RUN apt-get update && apt-get install -y \
 COPY ./math-worksheet-generator /app
 
 # Port uvicorn
-EXPOSE 8000
+EXPOSE 80
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+WORKDIR /app
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]

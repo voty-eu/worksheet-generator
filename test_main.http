@@ -1,6 +1,6 @@
 # Test your FastAPI endpoints
 
-GET http://127.0.0.1:8081/worksheet
-Accept: application/json
+GET http://127.0.0.1:80/
+Accept: application/html
 
 ###
