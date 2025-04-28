@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Math Worksheet Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2em;
+            background-color: #f9f9f9;
+        }
+        h1 {
+            color: #333;
+        }
+        form {
+            background: white;
+            padding: 2em;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 400px;
+        }
+        label {
+            display: block;
+            margin-top: 1em;
+        }
+        input[type="number"] {
+            width: 100%;
+            padding: 0.5em;
+            margin-top: 0.5em;
+        }
+        input[type="checkbox"] {
+            margin-right: 0.5em;
+        }
+        button {
+            margin-top: 2em;
+            padding: 1em;
+            width: 100%;
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            font-size: 1em;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+    <script>
+        function submitForm(event) {
+            event.preventDefault(); // zabrání klasickému odeslání formuláře
+
+            const worksheetType = document.querySelector('input[name="worksheet_type"]:checked');
+            const includeAnswers = document.querySelector('input[name="include_answers"]').checked;
+            const pageCount = document.querySelector('input[name="page_count"]').value;
+
+            if (!worksheetType) {
+                alert('Vyberte prosím typ pracovního listu.');
+                return;
+            }
+
+            let baseUrl = '';
+            if (worksheetType.value === 'grade1') {
+                baseUrl = '/worksheet/add_over_ten';
+            } else if (worksheetType.value === 'grade4') {
+                baseUrl = '/worksheet/add_sub_equations_small_numbers';
+            } else {
+                alert('Neplatný typ pracovního listu.');
+                return;
+            }
+
+            const url = `${baseUrl}?include_answers=${includeAnswers}&page_count=${encodeURIComponent(pageCount)}`;
+
+            window.location.href = url; // přesměruj uživatele
+        }
+    </script>
+</head>
+<body>
+    <h1>Math Worksheet Generator</h1>
+    <form onsubmit="submitForm(event)">
+        <fieldset>
+            <legend><strong>Typ pracovního listu</strong></legend>
+            <label><input type="radio" name="worksheet_type" value="grade1" required> 1. třída</label>
+            <label><input type="radio" name="worksheet_type" value="grade4"> 4. třída</label>
+        </fieldset>
+
+        <label>
+            <input type="checkbox" name="include_answers">
+            Přiložit výsledky
+        </label>
+
+        <label>
+            Počet stránek (1-20):
+            <input type="number" name="page_count" min="1" max="20" value="1" required>
+        </label>
+
+        <button type="submit">Vygenerovat PDF</button>
+    </form>
+</body>
+</html>

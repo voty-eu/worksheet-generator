@@ -1,11 +1,15 @@
+import typing
+
 from fastapi import FastAPI, Response
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph
 from reportlab.lib.styles import ParagraphStyle
-from reportlab.lib.enums import TA_LEFT
+from reportlab.lib.enums import TA_LEFT, TA_RIGHT
 import random
 import io
 from reportlab.pdfbase import pdfmetrics
@@ -13,6 +17,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase.pdfmetrics import registerFontFamily
 
 app = FastAPI()
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 PAGE_WIDTH, PAGE_HEIGHT = A4
 
@@ -28,48 +33,6 @@ registerFontFamily(
     italic='CMUSans-Italic',
     boldItalic='CMUSans-BoldItalic'
 )
-
-
-def generate_expression():
-    while True:
-        a = random.randint(0, 20)
-        b = random.randint(0, 20)
-        c = a + b
-        d = a - b + random.randint(0, 20)
-
-        options = [
-            (f"{a} + {b} = <b><i>x</i></b>", a + b),
-            (f"{a} + <b><i>x</i></b> = {c}", c - a),
-            (f"<b><i>x</i></b> + {b} = {c}", c - b),
-            (f"{a} - {b} = <b><i>x</i></b>", a - b),
-            (f"{a} - <b><i>x</i></b> = {c}", a - c),
-            (f"<b><i>x</i></b> - {b} = {c}", c + b),
-            (f"{a} - {b} + <b><i>x</i></b> = {d}", d - (a - b)),
-            (f"{a} + {b} - <b><i>x</i></b> = {d}", a + b - d),
-            (f"<b><i>x</i></b> - {a} + {b} = {d}", d + a - b),
-            (f"{a} + <b><i>x</i></b> - {b} = {d}", d - a + b),
-            (f"<b><i>x</i></b> + {a} - {b} = {d}", d - a + b),
-            (f"{a} - <b><i>x</i></b> + {b} = {d}", -(d - a - b)),
-
-            (f"<b><i>x</i></b> = {a} + {b}", a + b),
-            (f"{c} = <b><i>x</i></b> + {a}", c - a),
-            (f"{c} = {a} + <b><i>x</i></b>", c - a),
-            (f"<b><i>x</i></b> = {a} - {b}", a - b),
-            (f"{c} = {a} - <b><i>x</i></b>", a - c),
-            (f"{c} = <b><i>x</i></b> - {b}", c + b),
-            (f"{d} = {a} - {b} + <b><i>x</i></b>", d - a + b),
-            (f"{d} = {a} + <b><i>x</i></b> - {b}", d - a + b),
-            (f"{d} = <b><i>x</i></b> - {a} + {b}", d + a - b),
-            (f"{d} = {a} + <b><i>x</i></b> - {b}", d - a + b),
-            (f"{d} = <b><i>x</i></b> + {a} - {b}", d - a + b),
-            (f"{d} = {a} - <b><i>x</i></b> + {b}", -(d - a - b)),
-
-        ]
-
-        expr, result = random.choice(options)
-
-        if 0 <= result <= 100 and all(n >= 0 for n in [a, b, c, d]):
-            return expr, result
 
 
 def draw_number_line(c, x, y, width, result):
@@ -107,7 +70,9 @@ def draw_number_line(c, x, y, width, result):
             c.drawString(tick_x - c.stringWidth(tick_str) / 2, y - 15, tick_str)
 
 
-def create_pdf(num_problems=12, subject="Sčítání a odčítání malých čísel"):
+def create_pdf(subject: str = "",
+               generate_problems: typing.Callable[[canvas.Canvas, float, ParagraphStyle], list[float]] = None,
+               include_results=False) -> io.BytesIO:
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
 
@@ -118,11 +83,6 @@ def create_pdf(num_problems=12, subject="Sčítání a odčítání malých čí
     c.setCreator("https://edu.voty.eu")
 
     margin = 20 * mm
-    total_width = PAGE_WIDTH - 2 * margin
-    col_widths = [total_width * w for w in (0.35, 0.25, 0.4)]
-    row_height = 20 * mm
-    start_y = PAGE_HEIGHT - margin - row_height
-    line_counter = 0
 
     expr_style = ParagraphStyle(
         name='Expr',
@@ -132,63 +92,193 @@ def create_pdf(num_problems=12, subject="Sčítání a odčítání malých čí
         alignment=TA_LEFT
     )
 
-    print(c.getAvailableFonts())
+    # print(c.getAvailableFonts())
 
     c.line(margin, PAGE_HEIGHT - margin * 1.1, PAGE_WIDTH - margin, PAGE_HEIGHT - margin * 1.1)
     c.setFont("CMUSans", 10)
     c.drawString(margin, PAGE_HEIGHT - margin * 1.1 + 5, subject)
 
-    results = []
-
-    for i in range(num_problems):
-        y = start_y - line_counter * row_height
-        if y < margin:
-            c.showPage()
-            line_counter = 0
-            y = start_y
-
-        expr, result = generate_expression()
-        results.append(result)
-
-        x_expr = margin
-        x_result = x_expr + col_widths[0]
-        x_line = x_result + col_widths[1]
-
-        # --- Výraz v levém sloupci ---
-        para = Paragraph(expr, expr_style)
-        para.wrapOn(c, col_widths[0], row_height)
-        para.drawOn(c, x_expr, y - 4)
-
-        # --- Výsledkový rámeček s x = ---
-        c.setFont("CMUSans-Italic", 12)
-        c.drawString(x_result, y, f"x = ")
-        box_offset = c.stringWidth("x = ") + 2
-        box_width = (col_widths[1] - 10) / 2 + 10
-        box_height = 24
-        c.rect(x_result + box_offset, y - 7, box_width, box_height)
-
-        # --- Číselná osa ---
-        draw_number_line(c, x_line, y + 5, col_widths[2] - 10, result)
-
-        line_counter += 1
+    results = generate_problems(c, margin, expr_style)
 
     c.line(margin, margin * 1.1, PAGE_WIDTH - margin, margin * 1.1)
     c.setFont("CMUSans", 8)
     c.drawString(margin, margin * 0.9, "Generated by Math Worksheet Generator https://edu.voty.eu")
-    c.setFont("CMUSans-Italic", 5)
-    c.drawString(150 * mm, margin / 2, f"Results: {', '.join(map(str, results))}")
+    c.drawString(margin, margin / 2,
+                 "This work is licensed under CC BY-NC 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by-nc/4.0/")
+    c.setFont("CMUSans-Italic", 4)
+    if include_results:
+        c.drawString(margin, margin * 0.8, f"Results: {', '.join(map(str, results))}")
 
     c.save()
     buffer.seek(0)
     return buffer
 
 
-@app.get("/worksheet")
-def get_math_worksheet():
-    pdf_buffer = create_pdf()
+@app.get("/worksheet/add_sub_small_numbers")
+def get_math_worksheet_add_sub_small_numbers(include_results: bool = False):
+    def generate_expression():
+        while True:
+            a = random.randint(0, 20)
+            b = random.randint(0, 20)
+            c = a + b
+            d = a - b + random.randint(0, 20)
+
+            options = [
+                (f"{a} + {b} = <b><i>x</i></b>", a + b),
+                (f"{a} + <b><i>x</i></b> = {c}", c - a),
+                (f"<b><i>x</i></b> + {b} = {c}", c - b),
+                (f"{a} − {b} = <b><i>x</i></b>", a - b),
+                (f"{a} − <b><i>x</i></b> = {c}", a - c),
+                (f"<b><i>x</i></b> − {b} = {c}", c + b),
+                (f"{a} - {b} + <b><i>x</i></b> = {d}", d - (a - b)),
+                (f"{a} + {b} − <b><i>x</i></b> = {d}", a + b - d),
+                (f"<b><i>x</i></b> − {a} + {b} = {d}", d + a - b),
+                (f"{a} + <b><i>x</i></b> − {b} = {d}", d - a + b),
+                (f"<b><i>x</i></b> + {a} − {b} = {d}", d - a + b),
+                (f"{a} − <b><i>x</i></b> + {b} = {d}", -(d - a - b)),
+
+                (f"<b><i>x</i></b> = {a} + {b}", a + b),
+                (f"{c} = <b><i>x</i></b> + {a}", c - a),
+                (f"{c} = {a} + <b><i>x</i></b>", c - a),
+                (f"<b><i>x</i></b> = {a} − {b}", a - b),
+                (f"{c} = {a} − <b><i>x</i></b>", a - c),
+                (f"{c} = <b><i>x</i></b> - {b}", c + b),
+                (f"{d} = {a} − {b} + <b><i>x</i></b>", d - a + b),
+                (f"{d} = {a} + <b><i>x</i></b> − {b}", d - a + b),
+                (f"{d} = <b><i>x</i></b> − {a} + {b}", d + a - b),
+                (f"{d} = {a} + <b><i>x</i></b> − {b}", d - a + b),
+                (f"{d} = <b><i>x</i></b> + {a} − {b}", d - a + b),
+                (f"{d} = {a} − <b><i>x</i></b> + {b}", -(d - a - b)),
+
+            ]
+
+            expr, result = random.choice(options)
+
+            if 0 <= result <= 100 and all(n >= 0 for n in [a, b, c, d]):
+                return expr, result
+
+    def generate_page(c: canvas.Canvas, margin: float, style: ParagraphStyle) -> list[float]:
+        num_problems = 12
+        total_width = PAGE_WIDTH - 2 * margin
+        col_widths = [total_width * w for w in (0.35, 0.25, 0.4)]
+        row_height = 20 * mm
+
+        start_y = PAGE_HEIGHT - margin - row_height
+        line_counter = 0
+
+        results = []
+
+        for i in range(num_problems):
+            y = start_y - line_counter * row_height
+            if y < margin:
+                c.showPage()
+                line_counter = 0
+                y = start_y
+
+            expr, result = generate_expression()
+            results.append(result)
+
+            x_expr = margin
+            x_result = x_expr + col_widths[0]
+            x_line = x_result + col_widths[1]
+
+            # --- Výraz v levém sloupci ---
+            para = Paragraph(expr, style)
+            para.wrapOn(c, col_widths[0], row_height)
+            para.drawOn(c, x_expr, y - 4)
+
+            # --- Výsledkový rámeček s x = ---
+            c.setFont("CMUSans-Italic", 12)
+            c.drawString(x_result, y, f"x = ")
+            box_offset = c.stringWidth("x = ") + 2
+            box_width = (col_widths[1] - 10) / 2 + 10
+            box_height = 24
+            c.rect(x_result + box_offset, y - 7, box_width, box_height)
+
+            # --- Číselná osa ---
+            draw_number_line(c, x_line, y + 5, col_widths[2] - 10, result)
+
+            line_counter += 1
+        return results
 
     return StreamingResponse(
-        pdf_buffer,
+        create_pdf("Sčítání a odčítání malých čísel", generate_page, include_results),
         media_type="application/pdf",
         headers={"Content-Disposition": 'inline; filename="matematika.pdf"'}
     )
+
+
+@app.get("/worksheet/add_over_ten")
+def get_math_worksheet_add_over_ten(include_results: bool = False):
+    def generate_expression() -> tuple[str, int]:
+        def add_2():
+            a = random.randint(1, 9)
+            b = random.randint(min(11 - a, 9), min(20 - a, 9))
+            return a, b
+
+        def add_3():
+            a = random.randint(1, 9)
+            b = random.randint(1, 9)
+            c = random.randint(min(max(1, 11 - a - b), 9), min(20 - a - b, 9))
+            return a, b, c
+
+        options = [
+            (lambda a, b: (f"{a} + {b} = ", a + b), add_2),
+            (lambda a, b, c: (f"{a} + {b} + {c} = ", a + b + c), add_3),
+        ]
+
+        expr, generator = random.choice(options)
+
+        return expr(*generator())
+
+    def generate_unique_expression(expressions: list[str]):
+        while True:
+            expr, result = generate_expression()
+            if expr not in expressions:
+                return expr, result
+
+    def generate_page(c: canvas.Canvas, margin: float, style: ParagraphStyle) -> list[float]:
+        num_problems = 21
+        total_width = PAGE_WIDTH - 2 * margin
+        col_width = total_width * 1/3
+        row_height = 11.8 * mm
+
+        start_y = PAGE_HEIGHT - margin - row_height
+        line_counter = 0
+
+        style = ParagraphStyle(
+            name='Expr',
+            fontName='CMUSans',
+            fontSize=14,
+            leading=16,
+            alignment=TA_RIGHT
+        )
+
+        expressions = []
+        results = []
+
+        for i in range(num_problems):
+            y = start_y - line_counter * row_height
+
+            for col in range(3):
+                expr, result = generate_unique_expression(expressions)
+                expressions.append(expr)
+                results.append(result)
+                para = Paragraph(expr, style)
+                para.wrapOn(c, col_width, row_height)
+                para.drawOn(c, col_width * col, y - 4)
+                c.line(col_width * (col + 1), y - 8, col_width * (col + 1) + 30, y - 8)
+
+            line_counter += 1
+        return results
+
+    return StreamingResponse(
+        create_pdf("Sčítání přes desítku (jednociferná čísla)", generate_page, include_results),
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="matematika.pdf"'}
+    )
+
+
+@app.get("/", response_class=FileResponse)
+async def read_root():
+    return FileResponse("static/index.html")
