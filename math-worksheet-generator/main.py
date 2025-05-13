@@ -279,6 +279,167 @@ def get_math_worksheet_add_over_ten(
         headers={"Content-Disposition": 'inline; filename="matematika.pdf"'}
     )
 
+
+@app.get("/worksheet/add_sub_over_ten")
+def get_math_worksheet_add_sub_over_ten(
+        include_answers: bool = Query(False),
+        page_count: int = Query(1, ge=1, le=20)):
+    def generate_expression() -> tuple[str, int]:
+        def add_2():
+            a = random.randint(1, 9)
+            b = random.randint(min(11 - a, 9), min(20 - a, 9))
+            return a, b
+
+        def add_3():
+            a = random.randint(1, 9)
+            b = random.randint(1, 9)
+            c = random.randint(min(max(1, 11 - a - b), 9), min(20 - a - b, 9))
+            return a, b, c
+
+        def sub_2():
+            a = random.randint(1, 9)
+            b = random.randint(min(11 - a, 9), min(20 - a, 9))
+            return a + b, b
+
+        def sub_3():
+            a = random.randint(1, 9)
+            b = random.randint(1, 9)
+            c = random.randint(min(max(1, 11 - a - b), 9), min(20 - a - b, 9))
+            s = a + b + c
+            return (s, a, b) if s - a != 10 else (s, b, c) if s - b != 10 else (s, c, a)
+
+        options = [
+            (lambda a, b: (f"{a} + {b} = ", a + b), add_2),
+            (lambda a, b, c: (f"{a} + {b} + {c} = ", a + b + c), add_3),
+            (lambda a, b: (f"{a} - {b} = ", a - b), sub_2),
+            (lambda a, b, c: (f"{a} - {b} - {c} = ", a - b - c), sub_3),
+        ]
+
+        expr, generator = random.choice(options)
+
+        return expr(*generator())
+
+    def generate_unique_expression(expressions: list[str]):
+        while True:
+            expr, result = generate_expression()
+            if expr not in expressions:
+                return expr, result
+
+    def generate_page(c: canvas.Canvas, margin: float) -> list[float]:
+        num_problems = 21
+        total_width = PAGE_WIDTH - 2 * margin
+        col_width = total_width * 1 / 3
+        row_height = 11.8 * mm
+
+        start_y = PAGE_HEIGHT - margin - row_height
+        line_counter = 0
+
+        style = ParagraphStyle(
+            name='Expr',
+            fontName='CMUSans',
+            fontSize=14,
+            leading=16,
+            alignment=TA_RIGHT
+        )
+
+        expressions = []
+        results = []
+
+        for i in range(num_problems):
+            y = start_y - line_counter * row_height
+
+            for col in range(3):
+                expr, result = generate_unique_expression(expressions)
+                expressions.append(expr)
+                results.append(result)
+                para = Paragraph(expr, style)
+                para.wrapOn(c, col_width, row_height)
+                para.drawOn(c, col_width * col, y - 4)
+                c.line(col_width * (col + 1), y - 8, col_width * (col + 1) + 30, y - 8)
+
+            line_counter += 1
+        return results
+
+    return StreamingResponse(
+        create_pdf("Sčítání a odčítání přes desítku (jednociferná čísla)", generate_page, include_answers, page_count),
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="matematika.pdf"'}
+    )
+
+
+@app.get("/worksheet/sub_over_ten")
+def get_math_worksheet_sub_over_ten(
+        include_answers: bool = Query(False),
+        page_count: int = Query(1, ge=1, le=20)):
+    def generate_expression() -> tuple[str, int]:
+        def sub_2():
+            a = random.randint(1, 9)
+            b = random.randint(min(11 - a, 9), min(20 - a, 9))
+            return a + b, b
+
+        def sub_3():
+            a = random.randint(1, 9)
+            b = random.randint(1, 9)
+            c = random.randint(min(max(1, 11 - a - b), 9), min(20 - a - b, 9))
+            s = a + b + c
+            return (s, a, b) if s - a != 10 else (s, b, c) if s - b != 10 else (s, c, a)
+
+        options = [
+            (lambda a, b: (f"{a} - {b} = ", a - b), sub_2),
+            (lambda a, b, c: (f"{a} - {b} - {c} = ", a - b - c), sub_3),
+        ]
+
+        expr, generator = random.choice(options)
+
+        return expr(*generator())
+
+    def generate_unique_expression(expressions: list[str]):
+        while True:
+            expr, result = generate_expression()
+            if expr not in expressions:
+                return expr, result
+
+    def generate_page(c: canvas.Canvas, margin: float) -> list[float]:
+        num_problems = 21
+        total_width = PAGE_WIDTH - 2 * margin
+        col_width = total_width * 1 / 3
+        row_height = 11.8 * mm
+
+        start_y = PAGE_HEIGHT - margin - row_height
+        line_counter = 0
+
+        style = ParagraphStyle(
+            name='Expr',
+            fontName='CMUSans',
+            fontSize=14,
+            leading=16,
+            alignment=TA_RIGHT
+        )
+
+        expressions = []
+        results = []
+
+        for i in range(num_problems):
+            y = start_y - line_counter * row_height
+
+            for col in range(3):
+                expr, result = generate_unique_expression(expressions)
+                expressions.append(expr)
+                results.append(result)
+                para = Paragraph(expr, style)
+                para.wrapOn(c, col_width, row_height)
+                para.drawOn(c, col_width * col, y - 4)
+                c.line(col_width * (col + 1), y - 8, col_width * (col + 1) + 30, y - 8)
+
+            line_counter += 1
+        return results
+
+    return StreamingResponse(
+        create_pdf("Odčítání přes desítku (jednociferná čísla)", generate_page, include_answers, page_count),
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="matematika.pdf"'}
+    )
+
 @app.get("/worksheet/add_sub_mul_div")
 def get_math_worksheet_add_sub_mul_div(
         include_answers: bool = Query(False),
