@@ -17,15 +17,22 @@
                 {
                     title: "Rovnice - sčítání a odčítání (malá čísla)",
                     path: "/worksheet/add_sub_equations_small_numbers"
+                },
+                {
+                    title: "Početní operace - sčítání, odčítání, násobení, dělení",
+                    path: "/worksheet/add_sub_mul_div"
                 }
-            ]
+
+            ],
+
         };
 
         function submitForm(event, worksheetPath) {
             event.preventDefault();
+            const form = event.target;
 
-            const includeAnswers = document.querySelector('input[name="include_answers"]').checked;
-            const pageCount = document.querySelector('input[name="page_count"]').value;
+            const includeAnswers = form.querySelector('input[name="include_answers"]').checked;
+            const pageCount = form.querySelector('input[name="page_count"]').value;
 
             if (!pageCount || pageCount < 1 || pageCount > 20) {
                 alert('Zadejte počet stránek mezi 1 a 20.');
