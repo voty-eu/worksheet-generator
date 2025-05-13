@@ -279,6 +279,89 @@ def get_math_worksheet_add_over_ten(
         headers={"Content-Disposition": 'inline; filename="matematika.pdf"'}
     )
 
+@app.get("/worksheet/add_sub_mul_div")
+def get_math_worksheet_add_sub_mul_div(
+        include_answers: bool = Query(False),
+        page_count: int = Query(1, ge=1, le=20)):
+    def generate_expression() -> tuple[str, int]:
+        def add_2():
+            a = random.randint(1, 10000)
+            b = random.randint(1, 10000)
+            return a, b
+
+        def sub_2():
+            a = random.randint(1, 10000)
+            b = random.randint(1, 10000)
+            return (a, b) if a > b else (b, a)
+
+        def mul_2():
+            a = random.randint(1, 500)
+            b = random.randint(1, 500)
+            return a, b
+
+        def div_2():
+            a = random.randint(1, 500)
+            b = random.randint(1, 500)
+            return a * b, b
+
+        options = [
+            (lambda a, b: (f"{a} + {b} = ", a + b), add_2),
+            (lambda a, b: (f"{a} - {b} = ", a - b), sub_2),
+            (lambda a, b: (f"{a} × {b} = ", a * b), mul_2),
+            (lambda a, b: (f"{a} ÷ {b} = ", a // b), div_2),
+        ]
+
+        expr, generator = random.choice(options)
+
+        return expr(*generator())
+
+    def generate_unique_expression(expressions: list[str]):
+        while True:
+            expr, result = generate_expression()
+            if expr not in expressions:
+                return expr, result
+
+    def generate_page(c: canvas.Canvas, margin: float) -> list[float]:
+        num_problems = 21
+        total_width = PAGE_WIDTH - 2 * margin
+        col_width = total_width * 1 / 3
+        row_height = 11.8 * mm
+
+        start_y = PAGE_HEIGHT - margin - row_height
+        line_counter = 0
+
+        style = ParagraphStyle(
+            name='Expr',
+            fontName='CMUSans',
+            fontSize=14,
+            leading=16,
+            alignment=TA_RIGHT
+        )
+
+        expressions = []
+        results = []
+
+        for i in range(num_problems):
+            y = start_y - line_counter * row_height
+
+            for col in range(3):
+                expr, result = generate_unique_expression(expressions)
+                expressions.append(expr)
+                results.append(result)
+                para = Paragraph(expr, style)
+                para.wrapOn(c, col_width, row_height)
+                para.drawOn(c, col_width * col, y - 4)
+                c.line(col_width * (col + 1), y - 8, col_width * (col + 1) + 30, y - 8)
+
+            line_counter += 1
+        return results
+
+    return StreamingResponse(
+        create_pdf("Početní operace - sčítání, odčítání, násobení, dělení", generate_page, include_answers, page_count),
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="matematika.pdf"'}
+    )
+
 
 @app.get("/", response_class=FileResponse)
 async def read_root():
